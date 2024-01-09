@@ -1,12 +1,11 @@
-﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json;
 using System.Xml.Serialization;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.VisualBasic;
+using ArgumentNullException = System.ArgumentNullException;
 
-namespace Lab3;
+namespace Lab4;
 
 public class History
 {
@@ -20,10 +19,8 @@ public class History
         Values = values;
     }
 
-    [Key]
-    public string Key { get; set; }
-    [NotMapped]
-    public List<double> Values { get; set; }
+    [Key] public string Key { get; set; }
+    [NotMapped] public List<double> Values { get; set; }
 
     public string InternalData { get; set; }
 }
@@ -55,6 +52,9 @@ public class HistoryContext : DbContext
 public static class HistoryManager
 {
     public static History UserHistory { get; private set; } = new("", new List<double>());
+
+    private const string JsonFileName = "history.json";
+    private const string XmlFileName = "history.xml";
 
     public static void LoadHistory()
     {
@@ -108,34 +108,29 @@ public static class HistoryManager
 
     private static void LoadJsonHistory()
     {
-        Console.Write("Enter JSON file name to load history from: ");
-        var fileName = Console.ReadLine();
-
         Console.Write("Enter key to load history: ");
         var key = Console.ReadLine();
 
         try
         {
-            if (File.Exists(fileName))
+            if (!File.Exists(JsonFileName))
             {
-                var json = File.ReadAllText(fileName);
-                var histories = JsonSerializer.Deserialize<List<History>>(json);
+                File.Create(JsonFileName);
+            }
 
-                var loadedHistory = histories?.FirstOrDefault(h => h.Key == key);
+            var json = File.ReadAllText(JsonFileName);
+            var histories = JsonSerializer.Deserialize<List<History>>(json);
 
-                if (loadedHistory != null)
-                {
-                    UserHistory = loadedHistory;
-                    Console.WriteLine("History loaded successfully.");
-                }
-                else
-                {
-                    Console.WriteLine("History not found for the specified key.");
-                }
+            var loadedHistory = histories?.FirstOrDefault(h => h.Key == key);
+
+            if (loadedHistory != null)
+            {
+                UserHistory = loadedHistory;
+                Console.WriteLine("History loaded successfully.");
             }
             else
             {
-                Console.WriteLine("File not found.");
+                Console.WriteLine("History not found for the specified key.");
             }
         }
         catch (Exception ex)
@@ -146,24 +141,17 @@ public static class HistoryManager
 
     private static void SaveJsonHistory()
     {
-        Console.Write("Enter JSON file name to save history to: ");
-        var fileName = Console.ReadLine();
-
         Console.Write("Enter key to identify history: ");
         var key = Console.ReadLine();
 
         try
         {
-            List<History> existingHistories;
+            var existingHistories = new List<History>();
 
-            if (File.Exists(fileName))
+            if (File.Exists(JsonFileName))
             {
-                var json = File.ReadAllText(fileName);
+                var json = File.ReadAllText(JsonFileName);
                 existingHistories = JsonSerializer.Deserialize<List<History>>(json) ?? new List<History>();
-            }
-            else
-            {
-                existingHistories = new List<History>();
             }
 
             UserHistory.Key = key ?? throw new ArgumentNullException(nameof(key));
@@ -172,7 +160,7 @@ public static class HistoryManager
             existingHistories.Add(UserHistory);
 
             var updatedJson = JsonSerializer.Serialize(existingHistories);
-            File.WriteAllText(fileName ?? throw new ArgumentNullException(nameof(fileName)), updatedJson);
+            File.WriteAllText(JsonFileName, updatedJson);
 
             Console.WriteLine("History saved successfully.");
         }
@@ -184,16 +172,18 @@ public static class HistoryManager
 
     private static void LoadXmlHistory()
     {
-        Console.Write("Enter XML file name to load history from: ");
-        var fileName = Console.ReadLine();
-
         Console.Write("Enter key to load history: ");
         var key = Console.ReadLine();
 
         try
         {
             var serializer = new XmlSerializer(typeof(List<History>));
-            using var reader = new StreamReader(fileName ?? throw new ArgumentNullException(nameof(fileName)));
+            if (!File.Exists(XmlFileName))
+            {
+                File.Create(XmlFileName);
+            }
+
+            using var reader = new StreamReader(XmlFileName);
             var histories = serializer.Deserialize(reader) as List<History>;
 
             var loadedHistory = histories?.FirstOrDefault(h => h.Key == key);
@@ -216,9 +206,6 @@ public static class HistoryManager
 
     private static void SaveXmlHistory()
     {
-        Console.Write("Enter XML file name to save history to: ");
-        var fileName = Console.ReadLine();
-
         Console.Write("Enter key to identify history: ");
         var key = Console.ReadLine();
 
@@ -226,16 +213,12 @@ public static class HistoryManager
         {
             var serializer = new XmlSerializer(typeof(List<History>));
 
-            List<History> existingHistories;
+            var existingHistories = new List<History>();
 
-            if (File.Exists(fileName))
+            if (File.Exists(XmlFileName))
             {
-                using var reader = new StreamReader(fileName);
+                using var reader = new StreamReader(XmlFileName);
                 existingHistories = serializer.Deserialize(reader) as List<History> ?? new List<History>();
-            }
-            else
-            {
-                existingHistories = new List<History>();
             }
 
             UserHistory.Key = key ?? throw new ArgumentNullException(nameof(key));
@@ -243,7 +226,7 @@ public static class HistoryManager
 
             existingHistories.Add(UserHistory);
 
-            using (var writer = new StreamWriter(fileName ?? throw new ArgumentNullException(nameof(fileName))))
+            using (var writer = new StreamWriter(XmlFileName))
             {
                 serializer.Serialize(writer, existingHistories);
             }
@@ -255,7 +238,6 @@ public static class HistoryManager
             Console.WriteLine($"Error saving history: {ex.Message}");
         }
     }
-
 
     private static void LoadSqLiteHistory()
     {
